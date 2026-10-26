@@ -108,3 +108,21 @@ export component PhoneOverlay inherits Card {
         }
     }
 }
+
+export component NoticeOverlay inherits Card {
+    in property <length> window-width;
+    in property <string> text;
+
+    width: min(body.preferred-width + 64px, root.window-width * 0.8);
+    height: body.preferred-height + 40px;
+
+    body := Text {
+        width: parent.width - 64px;
+        text: root.text;
+        font-size: 32px;
+        font-weight: 500;
+        color: #ffffffeb;
+        horizontal-alignment: center;
+        wrap: word-wrap;
+    }
+}

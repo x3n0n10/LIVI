@@ -100,6 +100,7 @@ pub enum CpEvent {
     PhoneUtcOffset {
         minutes: i32,
     },
+    Notice(String),
     VideoCodec {
         id: SessionId,
         cluster: bool,
@@ -832,6 +833,7 @@ impl<M: Media> Manager<M> {
                     self.close(id);
                 }
             }
+            "notice" => self.emit(CpEvent::Notice(str_of(ev, "text"))),
             "deviceTime" => {
                 if let Some(minutes) = ev.get("utcOffsetMinutes").and_then(Value::as_f64) {
                     self.emit(CpEvent::PhoneUtcOffset {

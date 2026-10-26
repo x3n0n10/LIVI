@@ -297,6 +297,14 @@ pub(crate) struct WiredCtx {
     link: Arc<LinkPresence>,
 }
 
+impl WiredCtx {
+    /// Shows `text` big on LIVI's screen until the next notice; "" clears it.
+    pub(crate) fn notice(&self, text: &str) {
+        self.bcast
+            .push_json(serde_json::json!({ "type": "notice", "text": text }).to_string());
+    }
+}
+
 pub(crate) async fn run_wired_session<S>(
     serial: String,
     stream: S,

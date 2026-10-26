@@ -157,6 +157,7 @@ impl Projection {
                     self.video_up(Link::Cp(id));
                 }
             }
+            CpEvent::Notice(text) => self.hub.update(|s| s.system.notice = text),
             CpEvent::PhoneUtcOffset { minutes } => {
                 tokio::spawn(crate::gnss::timezone::apply_phone_offset(minutes));
             }

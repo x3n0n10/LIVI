@@ -14,7 +14,9 @@ use std::io::{Read, Write};
 use std::os::unix::fs::symlink;
 use std::path::Path;
 use std::process::Command;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 
 use iap2_link::LinkConfig;
 use tokio::sync::{Notify, mpsc};
@@ -28,7 +30,9 @@ const FFS_NAME: &str = "livi_iap2";
 const NCM: &str = "ncm.usb0";
 const FFS: &str = "ffs.livi_iap2";
 // a freshly powered box needs ~20 s before it honours the role switch
-const BOOT_GRACE: std::time::Duration = std::time::Duration::from_secs(25);
+const BOOT_GRACE: Duration = Duration::from_secs(25);
+// how long the user gets to move the cable before we say it didn't work
+const MOVE_WINDOW: Duration = Duration::from_secs(30);
 
 const LINK: LinkConfig = LinkConfig {
     max_outgoing: 4,
@@ -44,6 +48,7 @@ const EV_ENABLE: u8 = 2;
 const EV_DISABLE: u8 = 3;
 const EV_SETUP: u8 = 4;
 
+static ENABLES: AtomicU32 = AtomicU32::new(0);
 static GADGET_UP: OnceLock<mpsc::UnboundedSender<(String, WiredCtx)>> = OnceLock::new();
 
 /// True when the board has a USB device controller to put the gadget on.
@@ -63,7 +68,7 @@ pub fn switch(serial: &str, ctx: WiredCtx) {
             }
         },
     };
-    let _ = boxes.send((serial.to_string(), ctx));
+    let _ = boxes.send((serial.to_string(), ctx.clone()));
     let serial = serial.to_string();
     println!(
         "[aibox] {}: AI box found, role switch in {}s once it has booted",
@@ -74,14 +79,28 @@ pub fn switch(serial: &str, ctx: WiredCtx) {
         // shortcut: a fixed wait, since the box only takes the host role once
         // its Android side is up and treats an early 0x51 as a plain reset;
         // replace with a readiness probe if one turns up.
-        tokio::time::sleep(BOOT_GRACE).await;
+        for left in (1..=BOOT_GRACE.as_secs()).rev() {
+            ctx.notice(&format!("AI box found. Keep it in the USB-A port… {left}"));
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
         let target = serial.clone();
+        let enables = ENABLES.load(Ordering::Relaxed);
         match tokio::task::spawn_blocking(move || iap2_usbmux::request_role_switch(&target)).await {
-            Ok(Ok(())) => println!(
-                "[aibox] {}: asked for the USB role switch — move the cable to the device port now",
-                short(&serial)
-            ),
-            Ok(Err(e)) => eprintln!("[aibox] {}: {e}", short(&serial)),
+            Ok(Ok(())) => {
+                println!(
+                    "[aibox] {}: asked for the USB role switch — move the cable to the device port now",
+                    short(&serial)
+                );
+                ctx.notice("Move the cable to the USB-C port now");
+                tokio::time::sleep(MOVE_WINDOW).await;
+                if ENABLES.load(Ordering::Relaxed) == enables {
+                    ctx.notice("The box didn't connect on USB-C. Plug it into USB-A to try again.");
+                }
+            }
+            Ok(Err(e)) => {
+                eprintln!("[aibox] {}: {e}", short(&serial));
+                ctx.notice("The box didn't take the role switch. Plug it into USB-A to try again.");
+            }
             Err(e) => eprintln!("[aibox] {}: role switch task: {e}", short(&serial)),
         }
     });
@@ -131,6 +150,8 @@ async fn run(
                         continue;
                     };
                     println!("[aibox] {}: box is host now, starting iAP2", short(&serial));
+                    ENABLES.fetch_add(1, Ordering::Relaxed);
+                    ctx.notice("Box connected, starting CarPlay. If nothing shows within a minute, plug it into USB-A again.");
                     let stream = match open_endpoints() {
                         Ok(s) => s,
                         Err(e) => {
@@ -148,6 +169,9 @@ async fn run(
                 Some(EV_DISABLE | EV_UNBIND) => {
                     if let Some(c) = cancel.take() {
                         println!("[aibox] box let go of the gadget");
+                        if let Some((_, ctx)) = &last {
+                            ctx.notice("Box disconnected. Plug it into USB-A to start again.");
+                        }
                         c.notify_one();
                     }
                 }

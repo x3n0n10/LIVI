@@ -9,7 +9,7 @@ import { MediaPage, MediaText, Press, DabState, StationData } from "media.slint"
 import { ProjectionPage, TouchPhase } from "projection.slint";
 import { SettingsView, SettingsState, ScreenKind, RowData, RowKind, PickData, KnobData } from "settings/view.slint";
 import { Dashboard, DashState, GaugeData, CapData, TrailData, LabelData } from "dashboard.slint";
-import { LevelOverlay, PhoneOverlay, OverlayState } from "overlays.slint";
+import { LevelOverlay, PhoneOverlay, NoticeOverlay, OverlayState } from "overlays.slint";
 import { MaskData } from "mask.slint";
 
 export { Theme, Focus, FocusZone, Page, PhoneState, TabData, TouchPhase, SettingsState, ScreenKind, RowData, RowKind, PickData, KnobData, MediaText, Press, DabState, StationData, DashState, GaugeData, CapData, TrailData, LabelData, OverlayState, MaskData }
@@ -26,6 +26,7 @@ export component AppWindow inherits Window {
     in property <MaskData> main-mask;
     in property <bool> camera-found;
     in property <string> status;
+    in property <string> notice;
 
     in property <string> track-title;
     in property <string> artist;
@@ -187,6 +188,12 @@ export component AppWindow inherits Window {
         window-width: root.width;
         x: root.width - self.width - 16px;
         y: 16px;
+    }
+    if root.notice != "" && root.phone != PhoneState.streaming: NoticeOverlay {
+        window-width: root.width;
+        text: root.notice;
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
     }
 }
 
