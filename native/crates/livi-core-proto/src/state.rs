@@ -172,6 +172,9 @@ pub struct System {
     pub audio_sinks: Vec<AudioDevice>,
     pub audio_sources: Vec<AudioDevice>,
     pub start_page: String,
+    /// Step-by-step hint while a wired device needs the user's hands.
+    #[serde(default)]
+    pub notice: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]

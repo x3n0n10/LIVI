@@ -4,9 +4,9 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use nusb::MaybeFuture;
-use nusb::transfer::{ControlIn, ControlType, Recipient};
+use nusb::transfer::{ControlIn, ControlOut, ControlType, Recipient};
 
-use crate::{APPLE_VID, CP_CONFIG};
+use crate::{APPLE_VID, CP_CONFIG, NO_CARPLAY_CONFIGS};
 
 const SYSFS_USB: &str = "/sys/bus/usb/devices";
 const DEFAULT_CONFIG: u8 = 4;
@@ -141,8 +141,28 @@ fn request_carplay_configs(dev: &IPhoneDev) -> Result<(), String> {
             Duration::from_secs(1),
         )
         .wait()
-        .map_err(|e| format!("vendor request 0x52: {e}"))?;
+        .map_err(|e| format!("{NO_CARPLAY_CONFIGS}: {e}"))?;
     Ok(())
+}
+
+/// Asks the device to take the USB host role, the older wired CarPlay
+/// handshake. AI boxes that pose as an iPhone answer this one, not 0x52.
+pub fn request_role_switch(serial: &str) -> Result<(), String> {
+    let dev = find_by_serial(serial).ok_or_else(|| format!("iphone {serial} not found"))?;
+    open_by_address(dev.bus, dev.address)?
+        .control_out(
+            ControlOut {
+                control_type: ControlType::Vendor,
+                recipient: Recipient::Device,
+                request: 0x51,
+                value: 0x0001,
+                index: 0x0000,
+                data: &[],
+            },
+            Duration::from_secs(1),
+        )
+        .wait()
+        .map_err(|e| format!("vendor request 0x51: {e}"))
 }
 
 pub fn open_by_address(bus: u8, address: u8) -> Result<nusb::Device, String> {

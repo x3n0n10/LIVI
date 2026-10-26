@@ -171,6 +171,7 @@ fn apply(ui: &AppWindow, update: Update) {
         Update::Open(path) => open_path(ui, &path),
         Update::Volume(level) => overlay_ui::volume(ui, level),
         Update::PhoneName(name) => overlay_ui::phone(ui, &name),
+        Update::Notice(text) => ui.set_notice(text.into()),
         Update::Camera(found) => ui.set_camera_found(found),
         Update::MainMask(mask) => ui.set_main_mask(dashboard_ui::mask_data(mask)),
     }

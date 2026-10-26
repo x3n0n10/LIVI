@@ -172,7 +172,7 @@ pub fn drop_name_bound_profiles() {
     }
 }
 
-fn link_local_profile(ifname: &str) {
+pub fn link_local_profile(ifname: &str) {
     let _ = fs::write(format!("/proc/sys/net/ipv6/conf/{ifname}/accept_dad"), "0");
     run_cmd("ip", &["link", "set", ifname, "up"]);
     let Ok(mac) = fs::read_to_string(format!("/sys/class/net/{ifname}/address")) else {

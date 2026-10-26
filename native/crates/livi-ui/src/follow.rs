@@ -27,6 +27,7 @@ pub enum Update {
     Open(String),
     Volume(f64),
     PhoneName(String),
+    Notice(String),
     Camera(bool),
     MainMask(Option<Mask>),
 }
@@ -45,6 +46,7 @@ pub struct Follow {
     phones: overlay::Phone,
     started: bool,
     main_mask: Option<Option<Mask>>,
+    notice: Option<String>,
 }
 
 impl Follow {
@@ -151,6 +153,13 @@ impl Follow {
             && let Some(name) = self.phones.update(state)
         {
             out.push(Update::PhoneName(name));
+        }
+        if hit("system") {
+            let notice = state["system"]["notice"].as_str().unwrap_or("").to_string();
+            if self.notice.as_ref() != Some(&notice) {
+                self.notice = Some(notice.clone());
+                out.push(Update::Notice(notice));
+            }
         }
         if keys.is_none()
             && !std::mem::replace(&mut self.started, true)
