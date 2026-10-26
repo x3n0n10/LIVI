@@ -18,7 +18,7 @@ livi-aa.workspace = true
 livi-link-host.workspace = true
 iap2-usbmux.workspace = true
 iap2-wired.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "sync", "time"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "sync", "time", "fs", "io-util"] }
 serde_json.workspace = true
 libc.workspace = true
 nusb.workspace = true

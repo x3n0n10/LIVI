@@ -24,6 +24,14 @@ fn announce_gone(bcast: &Broadcaster, serial: &str) {
     ));
 }
 
+const CARKIT_LINK: LinkConfig = LinkConfig {
+    max_outgoing: 4,
+    max_outgoing_delta: 0,
+    ack_timeout_ms: 500,
+    zero_ack: true,
+    control_version: 2,
+};
+
 const SCAN_INTERVAL: Duration = Duration::from_secs(2);
 const MFI_RETRY: Duration = Duration::from_secs(1);
 #[cfg(target_os = "linux")]
@@ -78,6 +86,24 @@ pub async fn watch(
                     failed.remove(&serial);
                     dev
                 }
+                Err(e)
+                    if e.starts_with(iap2_usbmux::NO_CARPLAY_CONFIGS)
+                        && crate::ai_box::available() =>
+                {
+                    // An AI box: it wants the older role switch and becomes the USB host.
+                    failed.insert(serial.clone(), GIVE_UP_ATTEMPTS);
+                    let ctx = WiredCtx {
+                        auth: auth.clone(),
+                        identity: identity.clone(),
+                        cp: cp.clone(),
+                        dongle,
+                        bcast: bcast.clone(),
+                        state: state.clone(),
+                        link: link.clone(),
+                    };
+                    crate::ai_box::switch(&serial, ctx);
+                    continue;
+                }
                 Err(e) => {
                     let n = failed.entry(serial.clone()).or_insert(0);
                     *n += 1;
@@ -116,7 +142,15 @@ pub async fn watch(
                                 "[wired] {}: carkit channel up, starting iAP2",
                                 short(&serial)
                             );
-                            run_wired_session(serial.clone(), stream, ncm, ctx, cancel).await;
+                            run_wired_session(
+                                serial.clone(),
+                                stream,
+                                ncm,
+                                CARKIT_LINK,
+                                ctx,
+                                cancel,
+                            )
+                            .await;
                         }
                         None => {
                             eprintln!("[wired] {}: carkit stream unavailable", short(&serial));
@@ -201,7 +235,15 @@ pub async fn watch_usbmuxd(
                         );
                         let finder = tokio::spawn(find_usb_iface(device.udid.clone(), found));
                         let ncm = LocalNcm::System(None);
-                        run_wired_session(device.udid.clone(), stream, ncm, ctx, cancel).await;
+                        run_wired_session(
+                            device.udid.clone(),
+                            stream,
+                            ncm,
+                            CARKIT_LINK,
+                            ctx,
+                            cancel,
+                        )
+                        .await;
                         finder.abort();
                     }
                     Err(e) => {
@@ -245,7 +287,7 @@ pub struct Dongle {
 }
 
 #[derive(Clone)]
-struct WiredCtx {
+pub(crate) struct WiredCtx {
     auth: SharedCoprocessor,
     identity: Identity,
     cp: CpConfig,
@@ -255,10 +297,11 @@ struct WiredCtx {
     link: Arc<LinkPresence>,
 }
 
-async fn run_wired_session<S>(
+pub(crate) async fn run_wired_session<S>(
     serial: String,
     stream: S,
     ncm: LocalNcm,
+    link: LinkConfig,
     ctx: WiredCtx,
     cancel: Arc<Notify>,
 ) where
@@ -279,12 +322,6 @@ async fn run_wired_session<S>(
     {
         identity.bt_mac = mac;
     }
-    let link = LinkConfig {
-        max_outgoing: 4,
-        control_version: 2,
-        zero_ack: true,
-        ..LinkConfig::default()
-    };
     let (ch, art_rx) = spawn_link_stream(stream, link, true);
     let (tx, rx) = tokio::sync::mpsc::channel(64);
     let ident: SharedTag = Default::default();
@@ -358,11 +395,11 @@ async fn forward_starts(
     }
 }
 
-fn short(serial: &str) -> &str {
+pub(crate) fn short(serial: &str) -> &str {
     &serial[..8.min(serial.len())]
 }
 
-enum LocalNcm {
+pub(crate) enum LocalNcm {
     #[cfg(target_os = "linux")]
     Local(iap2_usbmux::NcmBridge),
     System(Option<String>),

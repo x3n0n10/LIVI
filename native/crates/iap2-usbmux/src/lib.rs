@@ -1,5 +1,7 @@
 pub const APPLE_VID: u16 = 0x05ac;
 pub const CP_CONFIG: u8 = 6;
+/// Error prefix when a device refuses to expose its CarPlay configurations.
+pub const NO_CARPLAY_CONFIGS: &str = "vendor request 0x52";
 
 pub mod ntb;
 
@@ -15,7 +17,7 @@ pub const EP_IN: u8 = 0x85;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "linux")]
-pub use linux::{IPhoneDev, open_by_address, restore_all_default_config};
+pub use linux::{IPhoneDev, open_by_address, request_role_switch, restore_all_default_config};
 
 #[cfg(target_os = "linux")]
 mod usb_pipe;
@@ -29,7 +31,7 @@ pub use device::{MuxDevice, MuxRegistry, socket_path};
 #[cfg(target_os = "linux")]
 mod ncm;
 #[cfg(target_os = "linux")]
-pub use ncm::{NcmBridge, drop_name_bound_profiles};
+pub use ncm::{NcmBridge, drop_name_bound_profiles, link_local_profile};
 
 mod async_stream;
 pub use async_stream::AsyncMuxStream;

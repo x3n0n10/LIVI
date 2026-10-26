@@ -1,6 +1,8 @@
 use std::process::ExitCode;
 
 mod aa;
+#[cfg(target_os = "linux")]
+mod ai_box;
 #[cfg(target_os = "macos")]
 mod bt_dongle;
 mod link;
